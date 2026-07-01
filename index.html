@@ -122,7 +122,7 @@
 <section class="screen" id="screen-home">
   <div class="mono">N&nbsp;|&nbsp;T</div>
   <p class="welcome-name" id="welcomeName">Welcome!</p>
-  <p class="sub">Capture the day — your photos, all in one place.</p>
+  <p class="sub">Capture the day and see all photos in one place!</p>
   <div class="stack">
     <button class="cta big" id="btnTakePhoto">Take Photo</button>
     <button class="cta ghost" id="btnSeePhotos">See Photos</button>
@@ -223,14 +223,28 @@
   // --- CAMERA ---
   var video = document.getElementById('video');
   var canvas = document.getElementById('canvas');
+  var imageCapture = null;
 
   function openCamera(){
     show('screen-camera');
     document.getElementById('camFallback').style.display = 'none';
     video.style.display = '';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { return openFallback(); }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
-      .then(function(s){ stream = s; video.srcObject = s; })
+    // Without explicit resolution constraints browsers default to a low-res
+    // video-call-grade stream — fine for the live preview, visibly soft once
+    // captured as a still. Ask for Full HD; the browser clamps to whatever
+    // the camera actually supports.
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    })
+      .then(function(s){
+        stream = s; video.srcObject = s;
+        imageCapture = null;
+        if (typeof ImageCapture !== 'undefined') {
+          try { imageCapture = new ImageCapture(s.getVideoTracks()[0]); } catch (e) { imageCapture = null; }
+        }
+      })
       .catch(function(){ openFallback(); });
   }
 
@@ -242,6 +256,7 @@
   function stopCamera(){
     if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
     video.srcObject = null;
+    imageCapture = null;
   }
 
   // --- PREVIEW (retake / add to album) ---
@@ -306,12 +321,24 @@
   });
 
   document.getElementById('btnShutter').addEventListener('click', function(){
-    if (!stream || !video.videoWidth) return;
+    if (!stream) return;
+    // Prefer the camera's native still-photo capture (full sensor
+    // resolution, independent of the video stream's lower resolution) where
+    // the browser supports it; otherwise grab the current video frame.
+    if (imageCapture && imageCapture.takePhoto) {
+      imageCapture.takePhoto().then(function(blob){ showPreview(blob); }).catch(captureVideoFrame);
+    } else {
+      captureVideoFrame();
+    }
+  });
+
+  function captureVideoFrame(){
+    if (!video.videoWidth) return;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(function(blob){ showPreview(blob); }, 'image/jpeg', 0.85);
-  });
+    canvas.toBlob(function(blob){ showPreview(blob); }, 'image/jpeg', 0.92);
+  }
 
   document.getElementById('fileFallback').addEventListener('change', function(e){
     var file = e.target.files[0];
