@@ -72,6 +72,13 @@
   .cam-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:8vw;background:var(--wine);gap:16px;text-align:center}
 
+  .cam-preview{position:absolute;inset:0;background:#000;display:none;z-index:20}
+  .cam-preview.show{display:block}
+  .cam-preview img{width:100%;height:100%;object-fit:cover;display:block}
+  .cam-preview .actions{position:absolute;left:0;right:0;bottom:0;padding:0 6vw 6vh;display:flex;gap:12px;
+    justify-content:center;background:linear-gradient(to top, rgba(0,0,0,.55), transparent)}
+  .cam-preview .actions .cta{flex:1;max-width:220px;padding:16px 20px}
+
   .toast{position:fixed;left:50%;bottom:14vh;transform:translateX(-50%) translateY(20px);background:var(--wine-deep);
     color:var(--cream-bright);padding:12px 24px;border-radius:30px;font-family:"Cormorant Garamond",serif;
     font-variant:small-caps;letter-spacing:.12em;font-size:16px;opacity:0;pointer-events:none;transition:all .3s ease;
@@ -124,6 +131,13 @@
   <div class="cam-top"><button class="cam-close" id="btnCloseCamera" aria-label="Close camera">&times;</button></div>
   <div class="cam-bottom"><button class="shutter" id="btnShutter" aria-label="Take photo"></button></div>
   <canvas id="canvas" style="display:none"></canvas>
+  <div class="cam-preview" id="camPreview">
+    <img id="previewImg" alt="">
+    <div class="actions">
+      <button class="cta ghost" id="btnRetake">Retake</button>
+      <button class="cta big" id="btnAddToAlbum">Add to Album</button>
+    </div>
+  </div>
   <div class="cam-fallback" id="camFallback" style="display:none">
     <p class="sub" style="margin:0">Couldn't open the in-page camera on this browser. Use your camera app instead — the photo will still be added to the album.</p>
     <label class="cta big" style="cursor:pointer">
@@ -223,7 +237,33 @@
     video.srcObject = null;
   }
 
+  // --- PREVIEW (retake / add to album) ---
+  var pendingBlob = null, pendingUrl = null;
+  var camPreview = document.getElementById('camPreview');
+  var previewImg = document.getElementById('previewImg');
+
+  function showPreview(blob){
+    pendingBlob = blob;
+    pendingUrl = URL.createObjectURL(blob);
+    previewImg.src = pendingUrl;
+    camPreview.classList.add('show');
+  }
+
+  function hidePreview(){
+    camPreview.classList.remove('show');
+    if (pendingUrl) { URL.revokeObjectURL(pendingUrl); pendingUrl = null; }
+    pendingBlob = null;
+  }
+
+  document.getElementById('btnRetake').addEventListener('click', hidePreview);
+  document.getElementById('btnAddToAlbum').addEventListener('click', function(){
+    if (!pendingBlob) return;
+    uploadPhoto(pendingBlob);
+    hidePreview();
+  });
+
   document.getElementById('btnCloseCamera').addEventListener('click', function(){
+    hidePreview();
     stopCamera();
     showHome();
   });
@@ -236,12 +276,12 @@
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(function(blob){ uploadPhoto(blob); }, 'image/jpeg', 0.85);
+    canvas.toBlob(function(blob){ showPreview(blob); }, 'image/jpeg', 0.85);
   });
 
   document.getElementById('fileFallback').addEventListener('change', function(e){
     var file = e.target.files[0];
-    if (file) uploadPhoto(file);
+    if (file) showPreview(file);
     e.target.value = '';
   });
 
