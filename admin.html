@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nathan &amp; Tom — Album Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,600;0,700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brick:#5E2523; --wine:#4D1F1D; --wine-deep:#3D1715;
+    --cream:#E3DDD1; --cream-bright:#EFE7DB; --pill:#ECE3D7; --line:rgba(227,221,209,.32);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--wine);color:var(--cream);
+    font-family:"Lora",Georgia,serif;font-size:16px;line-height:1.6;
+    -webkit-font-smoothing:antialiased}
+  a{color:inherit}
+
+  .wrap{max-width:1100px;margin:0 auto;padding:6vw 6vw 10vh}
+  .center{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8vw;text-align:center}
+  .mono{font-family:"Cormorant Garamond",serif;letter-spacing:.34em;color:var(--cream-bright);font-size:20px;margin-bottom:8px}
+  .title{font-family:"Playfair Display",serif;font-weight:700;color:var(--cream-bright);
+    font-size:clamp(26px,6vw,38px);margin:0 0 20px}
+
+  input[type=password]{width:100%;max-width:300px;background:rgba(0,0,0,.16);border:1px solid var(--line);
+    border-radius:10px;color:var(--cream-bright);font-family:"Playfair Display",serif;font-size:18px;
+    padding:13px 16px;text-align:center;outline:none;margin-bottom:16px}
+  input[type=password]:focus{border-color:var(--cream)}
+
+  .cta{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
+    background:var(--pill);color:var(--wine);border:none;
+    font-family:"Cormorant Garamond",serif;font-variant:small-caps;font-weight:600;letter-spacing:.14em;
+    font-size:18px;padding:13px 30px;border-radius:40px;cursor:pointer;transition:transform .15s ease}
+  .cta:active{transform:scale(.97)}
+  .cta.small{font-size:14px;padding:8px 18px}
+  .err{color:#e8a29d;font-family:"Cormorant Garamond",serif;font-variant:small-caps;letter-spacing:.08em;margin-top:6px}
+
+  .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:30px}
+  .count{opacity:.75;font-style:italic;font-size:15px}
+
+  .guest-block{margin-bottom:38px}
+  .guest-head{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);
+    padding-bottom:8px;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+  .guest-name{font-family:"Playfair Display",serif;font-weight:700;font-size:22px;color:var(--cream-bright)}
+  .guest-count{font-family:"Cormorant Garamond",serif;font-variant:small-caps;letter-spacing:.1em;opacity:.75;font-size:15px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+  .thumb{position:relative;border-radius:6px;overflow:hidden;background:rgba(0,0,0,.2)}
+  .thumb img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+  .thumb a.dl{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.55);color:var(--cream-bright);
+    border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+    text-decoration:none;font-size:15px}
+
+  .empty{opacity:.75;font-style:italic;margin-top:20px}
+</style>
+</head>
+<body>
+
+<section class="center" id="screen-login">
+  <div class="mono">N&nbsp;|&nbsp;T</div>
+  <h1 class="title">Album Admin</h1>
+  <form id="loginForm">
+    <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+    <div><button type="submit" class="cta">Enter</button></div>
+    <div class="err" id="loginErr" style="display:none">Incorrect password</div>
+  </form>
+</section>
+
+<section class="wrap" id="screen-admin" style="display:none">
+  <div class="top">
+    <div>
+      <div class="mono" style="margin-bottom:2px">N&nbsp;|&nbsp;T</div>
+      <span class="count" id="totalCount"></span>
+    </div>
+    <button class="cta" id="btnDownloadAll">Download All (.zip)</button>
+  </div>
+  <div id="guestBlocks"></div>
+  <p class="empty" id="adminEmpty" style="display:none">No photos uploaded yet.</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+<script>
+(function(){
+  var ADMIN_FN = 'https://ctdwwipppwelzsvqzcms.supabase.co/functions/v1/gr-wedding-admin';
+  var SS_KEY = 'wg_admin_pw';
+  var allPhotos = [];
+
+  function show(id){
+    ['screen-login','screen-admin'].forEach(function(s){
+      document.getElementById(s).style.display = (s === id) ? '' : 'none';
+    });
+  }
+
+  function loadPhotos(password){
+    return fetch(ADMIN_FN + '?action=list', {
+      method: 'POST',
+      headers: { 'x-wedding-admin-password': password },
+    }).then(function(r){
+      if (r.status === 403) throw new Error('forbidden');
+      return r.json();
+    });
+  }
+
+  function render(photos){
+    allPhotos = photos;
+    var groups = {};
+    photos.forEach(function(p){
+      (groups[p.guest_name] = groups[p.guest_name] || []).push(p);
+    });
+
+    document.getElementById('totalCount').textContent =
+      photos.length + ' photo' + (photos.length === 1 ? '' : 's') + ' from ' + Object.keys(groups).length + ' guest' + (Object.keys(groups).length === 1 ? '' : 's');
+    document.getElementById('adminEmpty').style.display = photos.length ? 'none' : '';
+
+    var container = document.getElementById('guestBlocks');
+    container.innerHTML = '';
+    Object.keys(groups).sort().forEach(function(name){
+      var block = document.createElement('div');
+      block.className = 'guest-block';
+
+      var head = document.createElement('div');
+      head.className = 'guest-head';
+      head.innerHTML = '<span class="guest-name"></span><span class="guest-count"></span>';
+      head.querySelector('.guest-name').textContent = name;
+      head.querySelector('.guest-count').textContent = groups[name].length + ' photo' + (groups[name].length === 1 ? '' : 's');
+      block.appendChild(head);
+
+      var grid = document.createElement('div');
+      grid.className = 'grid';
+      groups[name].forEach(function(p){
+        var thumb = document.createElement('div');
+        thumb.className = 'thumb';
+        var img = document.createElement('img');
+        img.src = p.url; img.loading = 'lazy';
+        var dl = document.createElement('a');
+        dl.className = 'dl'; dl.href = p.url; dl.textContent = '↓';
+        dl.title = 'Download';
+        thumb.appendChild(img); thumb.appendChild(dl);
+        grid.appendChild(thumb);
+      });
+      block.appendChild(grid);
+      container.appendChild(block);
+    });
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var pw = document.getElementById('pw').value;
+    document.getElementById('loginErr').style.display = 'none';
+    loadPhotos(pw).then(function(data){
+      if (!data.ok) throw new Error('bad_response');
+      sessionStorage.setItem(SS_KEY, pw);
+      render(data.photos || []);
+      show('screen-admin');
+    }).catch(function(){
+      document.getElementById('loginErr').style.display = '';
+    });
+  });
+
+  document.getElementById('btnDownloadAll').addEventListener('click', function(){
+    if (!allPhotos.length) return;
+    var btn = this;
+    var originalText = btn.textContent;
+    btn.textContent = 'Zipping 0/' + allPhotos.length + '…';
+    btn.disabled = true;
+
+    var files = {};
+    var done = 0;
+    var usedNames = {};
+
+    Promise.all(allPhotos.map(function(p){
+      return fetch(p.url).then(function(r){ return r.arrayBuffer(); }).then(function(buf){
+        var base = (p.guest_name || 'guest').replace(/[^a-z0-9\- ]/gi, '').trim().replace(/\s+/g, '-') || 'guest';
+        var name = base + '-' + p.id.slice(0, 8) + '.jpg';
+        var n = 1;
+        while (usedNames[name]) { name = base + '-' + p.id.slice(0, 8) + '-' + (n++) + '.jpg'; }
+        usedNames[name] = true;
+        files[name] = new Uint8Array(buf);
+        done++;
+        btn.textContent = 'Zipping ' + done + '/' + allPhotos.length + '…';
+      });
+    })).then(function(){
+      fflate.zip(files, { level: 0 }, function(err, data){
+        btn.textContent = originalText;
+        btn.disabled = false;
+        if (err) { alert('Could not build the zip: ' + err.message); return; }
+        var blob = new Blob([data], { type: 'application/zip' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'nathan-and-tom-wedding-photos.zip';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+      });
+    }).catch(function(){
+      btn.textContent = originalText;
+      btn.disabled = false;
+      alert('Could not download all photos — try again.');
+    });
+  });
+
+  // Auto-login if we already have the password this session
+  var saved = sessionStorage.getItem(SS_KEY);
+  if (saved) {
+    loadPhotos(saved).then(function(data){
+      if (data.ok) { render(data.photos || []); show('screen-admin'); }
+      else show('screen-login');
+    }).catch(function(){ show('screen-login'); });
+  } else {
+    show('screen-login');
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nathan &amp; Tom — Photo Album</title>
+<meta name="description" content="Add your photos from Nathan & Tom's wedding to the shared album.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brick:#5E2523;
+    --wine:#4D1F1D;
+    --wine-deep:#3D1715;
+    --cream:#E3DDD1;
+    --cream-bright:#EFE7DB;
+    --pill:#ECE3D7;
+    --line:rgba(227,221,209,.32);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--wine);color:var(--cream);
+    font-family:"Lora",Georgia,serif;font-size:18px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    overflow-x:hidden}
+  a{color:inherit}
+  button{font-family:inherit}
+
+  .screen{min-height:100vh;min-height:100dvh;display:none;flex-direction:column;
+    align-items:center;justify-content:center;padding:8vw 8vw;text-align:center}
+  .screen.active{display:flex}
+
+  .mono{font-family:"Cormorant Garamond",serif;letter-spacing:.34em;color:var(--cream-bright);font-size:20px;margin-bottom:8px}
+  .title{font-family:"Playfair Display",serif;font-weight:700;color:var(--cream-bright);
+    font-size:clamp(30px,8vw,46px);line-height:1.05;margin:0 0 6px}
+  .sub{font-family:"Lora",serif;font-style:italic;opacity:.85;font-size:16px;margin:0 0 30px;max-width:32ch}
+  .rule{height:1px;width:60px;background:var(--line);margin:20px auto}
+
+  .glabel{font-family:"Cormorant Garamond",serif;font-variant:small-caps;letter-spacing:.16em;
+    color:var(--cream-bright);font-size:16px;margin:0 0 10px}
+
+  input[type=text]{width:100%;max-width:340px;background:rgba(0,0,0,.16);border:1px solid var(--line);
+    border-radius:10px;color:var(--cream-bright);font-family:"Playfair Display",serif;font-size:20px;
+    padding:14px 16px;text-align:center;outline:none}
+  input[type=text]:focus{border-color:var(--cream)}
+  input[type=text]::placeholder{color:rgba(227,221,209,.45);font-style:italic;font-family:"Lora",serif;font-size:16px}
+
+  .cta{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
+    background:var(--pill);color:var(--wine);border:none;
+    font-family:"Cormorant Garamond",serif;font-variant:small-caps;font-weight:600;letter-spacing:.14em;
+    font-size:20px;padding:16px 34px;border-radius:44px;cursor:pointer;
+    box-shadow:0 12px 28px -16px rgba(0,0,0,.6);transition:transform .15s ease;width:100%;max-width:340px}
+  .cta:active{transform:scale(.97)}
+  .cta.big{font-size:23px;padding:22px 34px;background:var(--brick);color:var(--cream-bright)}
+  .cta.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--cream-bright)}
+  .stack{display:flex;flex-direction:column;gap:14px;width:100%;align-items:center;margin-top:8px}
+
+  .welcome-name{font-family:"Playfair Display",serif;font-weight:700;color:var(--cream-bright);
+    font-size:clamp(26px,7vw,38px);margin:0 0 4px}
+
+  /* CAMERA */
+  #screen-camera{padding:0;background:#000;position:relative}
+  #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+  .cam-top{position:absolute;top:0;left:0;right:0;padding:18px;display:flex;justify-content:flex-end;z-index:5}
+  .cam-close{width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);
+    color:#fff;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .cam-bottom{position:absolute;bottom:0;left:0;right:0;padding:0 0 6vh;display:flex;justify-content:center;z-index:5}
+  .shutter{width:78px;height:78px;border-radius:50%;background:var(--cream-bright);
+    border:5px solid rgba(255,255,255,.55);cursor:pointer;box-shadow:0 8px 24px -10px rgba(0,0,0,.8)}
+  .shutter:active{transform:scale(.92)}
+  .cam-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:8vw;background:var(--wine);gap:16px;text-align:center}
+
+  .toast{position:fixed;left:50%;bottom:14vh;transform:translateX(-50%) translateY(20px);background:var(--wine-deep);
+    color:var(--cream-bright);padding:12px 24px;border-radius:30px;font-family:"Cormorant Garamond",serif;
+    font-variant:small-caps;letter-spacing:.12em;font-size:16px;opacity:0;pointer-events:none;transition:all .3s ease;
+    z-index:90;box-shadow:0 14px 30px -16px rgba(0,0,0,.7)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:#7a2b28}
+
+  /* GALLERY */
+  #screen-gallery{justify-content:flex-start;padding:6vw 6vw 8vh;align-items:stretch;min-height:100vh}
+  .gal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .back{background:none;border:none;color:var(--cream-bright);font-family:"Cormorant Garamond",serif;
+    font-variant:small-caps;letter-spacing:.1em;font-size:17px;cursor:pointer;padding:6px 0}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+  .grid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;background:rgba(0,0,0,.2)}
+  .empty{opacity:.7;font-style:italic;margin-top:40px}
+
+  @media (min-width:640px){
+    .screen{padding:6vh 20vw}
+    #screen-gallery{padding:5vh 14vw 8vh}
+  }
+</style>
+</head>
+<body>
+
+<!-- NAME -->
+<section class="screen" id="screen-name">
+  <div class="mono">N&nbsp;|&nbsp;T</div>
+  <h1 class="title">Welcome!</h1>
+  <p class="sub">Add your name and start snapping — every photo joins our shared album.</p>
+  <form id="nameForm" class="stack" style="max-width:340px">
+    <input type="text" id="nameInput" placeholder="Your name" autocomplete="name" maxlength="80" required>
+    <button type="submit" class="cta">Join the Album</button>
+  </form>
+</section>
+
+<!-- HOME -->
+<section class="screen" id="screen-home">
+  <div class="mono">N&nbsp;|&nbsp;T</div>
+  <p class="welcome-name" id="welcomeName">Welcome!</p>
+  <p class="sub">Capture the day — your photos, all in one place.</p>
+  <div class="stack">
+    <button class="cta big" id="btnTakePhoto">Take Photo</button>
+    <button class="cta ghost" id="btnSeePhotos">See Photos</button>
+  </div>
+</section>
+
+<!-- CAMERA -->
+<section class="screen" id="screen-camera">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="cam-top"><button class="cam-close" id="btnCloseCamera" aria-label="Close camera">&times;</button></div>
+  <div class="cam-bottom"><button class="shutter" id="btnShutter" aria-label="Take photo"></button></div>
+  <canvas id="canvas" style="display:none"></canvas>
+  <div class="cam-fallback" id="camFallback" style="display:none">
+    <p class="sub" style="margin:0">Couldn't open the in-page camera on this browser. Use your camera app instead — the photo will still be added to the album.</p>
+    <label class="cta big" style="cursor:pointer">
+      Open Camera
+      <input type="file" id="fileFallback" accept="image/*" capture="environment" style="display:none">
+    </label>
+    <button class="cta ghost" id="btnCloseFallback">Close</button>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section class="screen" id="screen-gallery">
+  <div class="gal-head">
+    <button class="back" id="btnBackHome">&larr; Back</button>
+    <span class="glabel" style="margin:0">Your Photos</span>
+    <span style="width:52px"></span>
+  </div>
+  <div class="grid" id="galleryGrid"></div>
+  <p class="empty" id="galleryEmpty" style="display:none">No photos yet — take your first one!</p>
+</section>
+
+<div class="toast" id="toast">Added</div>
+
+<script>
+(function(){
+  var GUEST_FN = 'https://ctdwwipppwelzsvqzcms.supabase.co/functions/v1/gr-wedding-guest';
+  var LS_ID = 'wg_guest_id', LS_NAME = 'wg_guest_name';
+
+  var guestId = localStorage.getItem(LS_ID);
+  var guestName = localStorage.getItem(LS_NAME);
+  var stream = null;
+
+  function show(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+
+  function toast(msg, isErr){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.toggle('err', !!isErr);
+    t.classList.add('show');
+    clearTimeout(t._tt);
+    t._tt = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  function showHome(){
+    document.getElementById('welcomeName').textContent = 'Welcome, ' + guestName;
+    show('screen-home');
+  }
+
+  // --- NAME ---
+  document.getElementById('nameForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var name = document.getElementById('nameInput').value.trim();
+    if (!name) return;
+    var id = crypto.randomUUID();
+    fetch(GUEST_FN + '?action=register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-wedding-guest-id': id },
+      body: JSON.stringify({ name: name }),
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (!data.ok) { toast('Something went wrong — try again', true); return; }
+      guestId = id; guestName = data.name;
+      localStorage.setItem(LS_ID, guestId);
+      localStorage.setItem(LS_NAME, guestName);
+      showHome();
+    }).catch(function(){ toast('No connection — try again', true); });
+  });
+
+  // --- HOME ---
+  document.getElementById('btnTakePhoto').addEventListener('click', openCamera);
+  document.getElementById('btnSeePhotos').addEventListener('click', openGallery);
+  document.getElementById('btnBackHome').addEventListener('click', showHome);
+
+  // --- CAMERA ---
+  var video = document.getElementById('video');
+  var canvas = document.getElementById('canvas');
+
+  function openCamera(){
+    show('screen-camera');
+    document.getElementById('camFallback').style.display = 'none';
+    video.style.display = '';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { return openFallback(); }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(function(s){ stream = s; video.srcObject = s; })
+      .catch(function(){ openFallback(); });
+  }
+
+  function openFallback(){
+    video.style.display = 'none';
+    document.getElementById('camFallback').style.display = 'flex';
+  }
+
+  function stopCamera(){
+    if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+    video.srcObject = null;
+  }
+
+  document.getElementById('btnCloseCamera').addEventListener('click', function(){
+    stopCamera();
+    showHome();
+  });
+  document.getElementById('btnCloseFallback').addEventListener('click', function(){
+    showHome();
+  });
+
+  document.getElementById('btnShutter').addEventListener('click', function(){
+    if (!stream || !video.videoWidth) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(function(blob){ uploadPhoto(blob); }, 'image/jpeg', 0.85);
+  });
+
+  document.getElementById('fileFallback').addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if (file) uploadPhoto(file);
+    e.target.value = '';
+  });
+
+  function uploadPhoto(blob){
+    toast('Adding…');
+    fetch(GUEST_FN + '?action=upload', {
+      method: 'POST',
+      headers: { 'content-type': blob.type || 'image/jpeg', 'x-wedding-guest-id': guestId },
+      body: blob,
+    }).then(function(r){ return r.json(); }).then(function(data){
+      toast(data.ok ? 'Added to the album ✓' : 'Upload failed — try again', !data.ok);
+    }).catch(function(){ toast('No connection — try again', true); });
+  }
+
+  // --- GALLERY ---
+  function openGallery(){
+    show('screen-gallery');
+    var grid = document.getElementById('galleryGrid');
+    var empty = document.getElementById('galleryEmpty');
+    grid.innerHTML = '';
+    empty.style.display = 'none';
+    fetch(GUEST_FN + '?action=list', {
+      method: 'POST',
+      headers: { 'x-wedding-guest-id': guestId },
+    }).then(function(r){ return r.json(); }).then(function(data){
+      var photos = (data && data.photos) || [];
+      if (!photos.length) { empty.style.display = ''; return; }
+      photos.forEach(function(p){
+        var img = document.createElement('img');
+        img.src = p.url;
+        img.loading = 'lazy';
+        grid.appendChild(img);
+      });
+    }).catch(function(){ toast('Could not load your photos', true); });
+  }
+
+  // --- INIT ---
+  if (guestId && guestName) showHome(); else show('screen-name');
+})();
+</script>
+</body>
+</html>
