@@ -62,9 +62,12 @@
   /* CAMERA */
   #screen-camera{padding:0;background:#000;position:relative}
   #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
-  .cam-top{position:absolute;top:0;left:0;right:0;padding:18px;display:flex;justify-content:flex-end;z-index:5}
+  .cam-top{position:absolute;top:0;left:0;right:0;padding:18px;display:flex;justify-content:space-between;z-index:5}
   .cam-close{width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);
     color:#fff;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .cam-torch{width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);
+    color:#fff;font-size:18px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center}
+  .cam-torch.on{background:var(--cream-bright);color:var(--wine);border-color:var(--cream-bright)}
   .cam-bottom{position:absolute;bottom:0;left:0;right:0;padding:0 0 6vh;display:flex;justify-content:center;z-index:5}
   .shutter{width:78px;height:78px;border-radius:50%;background:var(--cream-bright);
     border:5px solid rgba(255,255,255,.55);cursor:pointer;box-shadow:0 8px 24px -10px rgba(0,0,0,.8)}
@@ -135,7 +138,10 @@
 <!-- CAMERA -->
 <section class="screen" id="screen-camera">
   <video id="video" autoplay playsinline muted></video>
-  <div class="cam-top"><button class="cam-close" id="btnCloseCamera" aria-label="Close camera">&times;</button></div>
+  <div class="cam-top">
+    <button class="cam-torch" id="btnTorch" aria-label="Toggle flash">&#9889;</button>
+    <button class="cam-close" id="btnCloseCamera" aria-label="Close camera">&times;</button>
+  </div>
   <div class="cam-bottom"><button class="shutter" id="btnShutter" aria-label="Take photo"></button></div>
   <div class="cam-flash" id="camFlash"></div>
   <canvas id="canvas" style="display:none"></canvas>
@@ -227,11 +233,13 @@
   // --- CAMERA ---
   var video = document.getElementById('video');
   var canvas = document.getElementById('canvas');
+  var videoTrack = null, torchOn = false, torchBtn = document.getElementById('btnTorch');
 
   function openCamera(){
     show('screen-camera');
     document.getElementById('camFallback').style.display = 'none';
     video.style.display = '';
+    torchBtn.style.display = 'none';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { return openFallback(); }
     // Without explicit resolution constraints browsers default to a low-res
     // video-call-grade stream — fine for the live preview, visibly soft once
@@ -245,19 +253,41 @@
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false,
     })
-      .then(function(s){ stream = s; video.srcObject = s; })
+      .then(function(s){
+        stream = s; video.srcObject = s;
+        videoTrack = s.getVideoTracks()[0];
+        torchOn = false;
+        torchBtn.classList.remove('on');
+        // Torch control is a non-standard MediaTrackConstraint only a subset
+        // of Android/Chrome cameras expose — iOS Safari never does. Detect
+        // and hide the button rather than show something that won't work.
+        var caps = (videoTrack.getCapabilities && videoTrack.getCapabilities()) || {};
+        torchBtn.style.display = caps.torch ? '' : 'none';
+      })
       .catch(function(){ openFallback(); });
   }
 
   function openFallback(){
     video.style.display = 'none';
+    torchBtn.style.display = 'none';
     document.getElementById('camFallback').style.display = 'flex';
   }
 
   function stopCamera(){
     if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
     video.srcObject = null;
+    videoTrack = null;
+    torchOn = false;
+    torchBtn.classList.remove('on');
   }
+
+  torchBtn.addEventListener('click', function(){
+    if (!videoTrack) return;
+    var next = !torchOn;
+    videoTrack.applyConstraints({ advanced: [{ torch: next }] })
+      .then(function(){ torchOn = next; torchBtn.classList.toggle('on', torchOn); })
+      .catch(function(){ /* device claimed support but rejected it — leave state as-is */ });
+  });
 
   // --- PREVIEW (retake / add to album) ---
   // The captured photo is never discarded until the server has confirmed the
