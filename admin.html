@@ -75,7 +75,10 @@
       <div class="mono" style="margin-bottom:2px">N&nbsp;|&nbsp;T</div>
       <span class="count" id="totalCount"></span>
     </div>
-    <button class="cta" id="btnDownloadAll">Download All (.zip)</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="cta small" id="btnReconcile" title="Scans storage directly and recovers any photo that failed to list">Backup Check</button>
+      <button class="cta" id="btnDownloadAll">Download All (.zip)</button>
+    </div>
   </div>
   <div id="guestBlocks"></div>
   <p class="empty" id="adminEmpty" style="display:none">No photos uploaded yet.</p>
@@ -87,6 +90,7 @@
   var ADMIN_FN = 'https://ctdwwipppwelzsvqzcms.supabase.co/functions/v1/gr-wedding-admin';
   var SS_KEY = 'wg_admin_pw';
   var allPhotos = [];
+  var currentPw = null;
 
   function show(id){
     ['screen-login','screen-admin'].forEach(function(s){
@@ -153,10 +157,35 @@
     loadPhotos(pw).then(function(data){
       if (!data.ok) throw new Error('bad_response');
       sessionStorage.setItem(SS_KEY, pw);
+      currentPw = pw;
       render(data.photos || []);
       show('screen-admin');
     }).catch(function(){
       document.getElementById('loginErr').style.display = '';
+    });
+  });
+
+  document.getElementById('btnReconcile').addEventListener('click', function(){
+    var btn = this;
+    var original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    fetch(ADMIN_FN + '?action=reconcile', {
+      method: 'POST',
+      headers: { 'x-wedding-admin-password': currentPw },
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (!data.ok) { alert('Backup check failed — try again.'); return; }
+      return loadPhotos(currentPw).then(function(fresh){
+        render(fresh.photos || []);
+        alert(data.recovered > 0
+          ? data.recovered + ' photo(s) were found in storage but missing from the album, and have been restored.'
+          : 'All good — every photo in storage is already showing in the album.');
+      });
+    }).catch(function(){
+      alert('Backup check failed — check your connection and try again.');
+    }).finally(function(){
+      btn.disabled = false;
+      btn.textContent = original;
     });
   });
 
@@ -204,6 +233,7 @@
   // Auto-login if we already have the password this session
   var saved = sessionStorage.getItem(SS_KEY);
   if (saved) {
+    currentPw = saved;
     loadPhotos(saved).then(function(data){
       if (data.ok) { render(data.photos || []); show('screen-admin'); }
       else show('screen-login');

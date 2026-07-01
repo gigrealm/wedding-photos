@@ -75,9 +75,13 @@
   .cam-preview{position:absolute;inset:0;background:#000;display:none;z-index:20}
   .cam-preview.show{display:block}
   .cam-preview img{width:100%;height:100%;object-fit:cover;display:block}
-  .cam-preview .actions{position:absolute;left:0;right:0;bottom:0;padding:0 6vw 6vh;display:flex;gap:12px;
-    justify-content:center;background:linear-gradient(to top, rgba(0,0,0,.55), transparent)}
+  .cam-preview .actions{position:absolute;left:0;right:0;bottom:0;padding:14px 6vw 6vh;
+    background:linear-gradient(to top, rgba(0,0,0,.55), transparent)}
+  .cam-preview .actions-row{display:flex;gap:12px;justify-content:center}
   .cam-preview .actions .cta{flex:1;max-width:220px;padding:16px 20px}
+  .cam-preview .cta:disabled{opacity:.5;cursor:default}
+  .preview-status{color:#f2b8b3;font-family:"Cormorant Garamond",serif;font-variant:small-caps;
+    letter-spacing:.06em;font-size:15px;text-align:center;margin:0 0 10px}
 
   .toast{position:fixed;left:50%;bottom:14vh;transform:translateX(-50%) translateY(20px);background:var(--wine-deep);
     color:var(--cream-bright);padding:12px 24px;border-radius:30px;font-family:"Cormorant Garamond",serif;
@@ -134,8 +138,11 @@
   <div class="cam-preview" id="camPreview">
     <img id="previewImg" alt="">
     <div class="actions">
-      <button class="cta ghost" id="btnRetake">Retake</button>
-      <button class="cta big" id="btnAddToAlbum">Add to Album</button>
+      <p class="preview-status" id="previewStatus" style="display:none"></p>
+      <div class="actions-row">
+        <button class="cta ghost" id="btnRetake">Retake</button>
+        <button class="cta big" id="btnAddToAlbum">Add to Album</button>
+      </div>
     </div>
   </div>
   <div class="cam-fallback" id="camFallback" style="display:none">
@@ -238,14 +245,38 @@
   }
 
   // --- PREVIEW (retake / add to album) ---
+  // The captured photo is never discarded until the server has confirmed the
+  // upload actually succeeded — a dropped connection shows a Retry, not a
+  // silent loss, and the same shot can be resent without retaking it.
   var pendingBlob = null, pendingUrl = null;
   var camPreview = document.getElementById('camPreview');
   var previewImg = document.getElementById('previewImg');
+  var addBtn = document.getElementById('btnAddToAlbum');
+  var retakeBtn = document.getElementById('btnRetake');
+  var previewStatus = document.getElementById('previewStatus');
+
+  function setPreviewState(state){
+    if (state === 'uploading') {
+      addBtn.disabled = true; addBtn.textContent = 'Uploading…';
+      retakeBtn.disabled = true;
+      previewStatus.style.display = 'none';
+    } else if (state === 'error') {
+      addBtn.disabled = false; addBtn.textContent = 'Retry';
+      retakeBtn.disabled = false;
+      previewStatus.style.display = '';
+      previewStatus.textContent = "Couldn't save — check your connection and try again";
+    } else {
+      addBtn.disabled = false; addBtn.textContent = 'Add to Album';
+      retakeBtn.disabled = false;
+      previewStatus.style.display = 'none';
+    }
+  }
 
   function showPreview(blob){
     pendingBlob = blob;
     pendingUrl = URL.createObjectURL(blob);
     previewImg.src = pendingUrl;
+    setPreviewState('idle');
     camPreview.classList.add('show');
   }
 
@@ -256,10 +287,13 @@
   }
 
   document.getElementById('btnRetake').addEventListener('click', hidePreview);
-  document.getElementById('btnAddToAlbum').addEventListener('click', function(){
+  addBtn.addEventListener('click', function(){
     if (!pendingBlob) return;
-    uploadPhoto(pendingBlob);
-    hidePreview();
+    setPreviewState('uploading');
+    uploadPhoto(pendingBlob).then(function(ok){
+      if (ok) { toast('Added to the album ✓'); hidePreview(); }
+      else { setPreviewState('error'); }
+    });
   });
 
   document.getElementById('btnCloseCamera').addEventListener('click', function(){
@@ -285,15 +319,16 @@
     e.target.value = '';
   });
 
+  // Resolves true only once the server has actually stored the photo —
+  // callers must not discard pendingBlob until this resolves true.
   function uploadPhoto(blob){
-    toast('Adding…');
-    fetch(GUEST_FN + '?action=upload', {
+    return fetch(GUEST_FN + '?action=upload', {
       method: 'POST',
       headers: { 'content-type': blob.type || 'image/jpeg', 'x-wedding-guest-id': guestId },
       body: blob,
     }).then(function(r){ return r.json(); }).then(function(data){
-      toast(data.ok ? 'Added to the album ✓' : 'Upload failed — try again', !data.ok);
-    }).catch(function(){ toast('No connection — try again', true); });
+      return !!(data && data.ok);
+    }).catch(function(){ return false; });
   }
 
   // --- GALLERY ---
