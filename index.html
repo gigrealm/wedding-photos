@@ -55,6 +55,8 @@
   .cta.big{font-size:23px;padding:22px 34px;background:var(--brick);color:var(--cream-bright)}
   .cta.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--cream-bright)}
   .stack{display:flex;flex-direction:column;gap:14px;width:100%;align-items:center;margin-top:8px}
+  .row-2{display:flex;gap:12px;width:100%;max-width:340px}
+  .row-2 .cta{flex:1;max-width:none;padding:14px 10px;font-size:17px}
 
   .welcome-name{font-family:"Playfair Display",serif;font-weight:700;color:var(--cream-bright);
     font-size:clamp(26px,7vw,38px);margin:0 0 4px}
@@ -131,8 +133,12 @@
   <p class="sub">Help us capture the day!</p>
   <div class="stack">
     <button class="cta big" id="btnTakePhoto">Take Photo</button>
-    <button class="cta ghost" id="btnSeePhotos">See Photos</button>
+    <div class="row-2">
+      <button class="cta ghost" id="btnUploadAlbum">Upload Photos</button>
+      <button class="cta ghost" id="btnSeePhotos">See Photos</button>
+    </div>
   </div>
+  <input type="file" id="albumFileInput" accept="image/*" multiple style="display:none">
 </section>
 
 <!-- CAMERA -->
@@ -229,6 +235,34 @@
   document.getElementById('btnTakePhoto').addEventListener('click', openCamera);
   document.getElementById('btnSeePhotos').addEventListener('click', openGallery);
   document.getElementById('btnBackHome').addEventListener('click', showHome);
+
+  // --- UPLOAD FROM ALBUM (existing photos, not the live camera) ---
+  document.getElementById('btnUploadAlbum').addEventListener('click', function(){
+    document.getElementById('albumFileInput').click();
+  });
+  document.getElementById('albumFileInput').addEventListener('change', function(e){
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = '';
+    if (files.length) uploadMultiple(files);
+  });
+
+  function uploadMultiple(files){
+    var total = files.length, done = 0, failed = 0;
+    toast('Adding 0/' + total + '…');
+    function next(i){
+      if (i >= files.length) {
+        if (failed === 0) toast('Added ' + total + ' photo' + (total === 1 ? '' : 's') + ' to the album ✓');
+        else toast(done + ' of ' + total + ' added — ' + failed + ' failed, try again', true);
+        return;
+      }
+      uploadPhoto(files[i]).then(function(ok){
+        if (ok) done++; else failed++;
+        toast('Adding ' + (done + failed) + '/' + total + '…');
+        next(i + 1);
+      });
+    }
+    next(0);
+  }
 
   // --- CAMERA ---
   var video = document.getElementById('video');
